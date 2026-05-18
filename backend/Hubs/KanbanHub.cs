@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
 namespace UnixCrm.Api.Hubs;
 
+[Authorize]
 public class KanbanHub : Hub
 {
     public async Task JoinBoard(Guid boardId)

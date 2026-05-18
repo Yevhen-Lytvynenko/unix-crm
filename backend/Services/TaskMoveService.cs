@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using UnixCrm.Api.Data;
+using UnixCrm.Api.Data.Entities;
 using UnixCrm.Api.Dtos;
 using UnixCrm.Api.Hubs;
 
@@ -86,6 +87,8 @@ public class TaskMoveService(
             task.Position = newPosition;
         }
 
+        await ValidateCompletionAllowedAsync(task.Id, newColumnId, ct);
+
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
@@ -96,5 +99,30 @@ public class TaskMoveService(
         logger.LogInformation("Task {TaskId} moved to column {ColumnId} position {Position}", task.Id, newColumnId, newPosition);
 
         return evt;
+    }
+
+    private async Task ValidateCompletionAllowedAsync(Guid taskId, Guid newColumnId, CancellationToken ct)
+    {
+        var col = await db.Columns.AsNoTracking().FirstOrDefaultAsync(c => c.Id == newColumnId, ct);
+        if (col is null || !col.IsCompletionColumn)
+            return;
+
+        var blockerIds = await db.TaskDependencies
+            .AsNoTracking()
+            .Where(d => d.BlockedTaskId == taskId)
+            .Select(d => d.BlockerTaskId)
+            .ToListAsync(ct);
+
+        foreach (var bid in blockerIds)
+        {
+            var blocker = await db.Tasks
+                .AsNoTracking()
+                .Include(t => t.Column)
+                .FirstAsync(t => t.Id == bid, ct);
+
+            if (!blocker.Column.IsCompletionColumn)
+                throw new InvalidOperationException(
+                    $"Нельзя перенести в завершённые, пока не закрыта зависимость: «{blocker.Title}».");
+        }
     }
 }

@@ -8,6 +8,16 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+html,
+body,
 #root {
-  min-height: 100vh;
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
+}
+
+#root {
+  min-height: 100%;
 }

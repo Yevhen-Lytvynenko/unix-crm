@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using UnixCrm.Api.Data;
 
 #nullable disable
@@ -15,18 +16,22 @@ namespace UnixCrm.Api.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "8.0.11");
+            modelBuilder
+                .HasAnnotation("ProductVersion", "8.0.11")
+                .HasAnnotation("Relational:MaxIdentifierLength", 63);
+
+            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("UnixCrm.Api.Data.Entities.Board", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(512)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(512)");
 
                     b.HasKey("Id");
 
@@ -37,18 +42,21 @@ namespace UnixCrm.Api.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("BoardId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsCompletionColumn")
+                        .HasColumnType("boolean");
 
                     b.Property<int>("Position")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(256)");
 
                     b.HasKey("Id");
 
@@ -61,44 +69,125 @@ namespace UnixCrm.Api.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid?>("AssigneeId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("ColumnId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Description")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DueDateUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Position")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("integer");
+
+                    b.Property<byte>("Priority")
+                        .HasColumnType("smallint");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(512)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(512)");
 
                     b.HasKey("Id");
 
                     b.HasIndex("AssigneeId");
+
+                    b.HasIndex("DueDateUtc");
+
+                    b.HasIndex("Priority");
 
                     b.HasIndex("ColumnId", "Position");
 
                     b.ToTable("tasks", (string)null);
                 });
 
+            modelBuilder.Entity("UnixCrm.Api.Data.Entities.Tag", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Color")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.HasIndex("SortOrder");
+
+                    b.ToTable("tags", (string)null);
+                });
+
+            modelBuilder.Entity("UnixCrm.Api.Data.Entities.TaskDependency", b =>
+                {
+                    b.Property<Guid>("BlockedTaskId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BlockerTaskId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("BlockedTaskId", "BlockerTaskId");
+
+                    b.HasIndex("BlockerTaskId");
+
+                    b.ToTable("task_dependencies", (string)null);
+                });
+
+            modelBuilder.Entity("UnixCrm.Api.Data.Entities.TaskTag", b =>
+                {
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TagId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("TaskId", "TagId");
+
+                    b.HasIndex("TagId");
+
+                    b.ToTable("task_tags", (string)null);
+                });
+
             modelBuilder.Entity("UnixCrm.Api.Data.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("MustChangePassword")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(4096)
+                        .HasColumnType("character varying(4096)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<string>("Username")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("character varying(256)");
 
                     b.HasKey("Id");
 
@@ -137,6 +226,44 @@ namespace UnixCrm.Api.Migrations
                     b.Navigation("Column");
                 });
 
+            modelBuilder.Entity("UnixCrm.Api.Data.Entities.TaskDependency", b =>
+                {
+                    b.HasOne("UnixCrm.Api.Data.Entities.KanbanTask", "BlockedTask")
+                        .WithMany("BlockedByPrerequisites")
+                        .HasForeignKey("BlockedTaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UnixCrm.Api.Data.Entities.KanbanTask", "BlockerTask")
+                        .WithMany("BlocksDependents")
+                        .HasForeignKey("BlockerTaskId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BlockedTask");
+
+                    b.Navigation("BlockerTask");
+                });
+
+            modelBuilder.Entity("UnixCrm.Api.Data.Entities.TaskTag", b =>
+                {
+                    b.HasOne("UnixCrm.Api.Data.Entities.Tag", "Tag")
+                        .WithMany("TaskTags")
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UnixCrm.Api.Data.Entities.KanbanTask", "Task")
+                        .WithMany("TaskTags")
+                        .HasForeignKey("TaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tag");
+
+                    b.Navigation("Task");
+                });
+
             modelBuilder.Entity("UnixCrm.Api.Data.Entities.Board", b =>
                 {
                     b.Navigation("Columns");
@@ -145,6 +272,20 @@ namespace UnixCrm.Api.Migrations
             modelBuilder.Entity("UnixCrm.Api.Data.Entities.BoardColumn", b =>
                 {
                     b.Navigation("Tasks");
+                });
+
+            modelBuilder.Entity("UnixCrm.Api.Data.Entities.KanbanTask", b =>
+                {
+                    b.Navigation("BlockedByPrerequisites");
+
+                    b.Navigation("BlocksDependents");
+
+                    b.Navigation("TaskTags");
+                });
+
+            modelBuilder.Entity("UnixCrm.Api.Data.Entities.Tag", b =>
+                {
+                    b.Navigation("TaskTags");
                 });
 
             modelBuilder.Entity("UnixCrm.Api.Data.Entities.User", b =>

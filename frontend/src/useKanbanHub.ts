@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
 import { useQueryClient } from '@tanstack/react-query'
+import { getToken } from './auth'
+import { apiUrl } from './apiBase'
 
 /** Keeps the board in sync when other clients move tasks. */
 export function useKanbanHub(boardId: string | undefined) {
@@ -10,7 +12,10 @@ export function useKanbanHub(boardId: string | undefined) {
     if (!boardId) return
 
     const connection = new HubConnectionBuilder()
-      .withUrl('/hubs/kanban', { withCredentials: true })
+      .withUrl(apiUrl('/hubs/kanban'), {
+        withCredentials: true,
+        accessTokenFactory: () => getToken() ?? '',
+      })
       .withAutomaticReconnect()
       .configureLogging(LogLevel.Warning)
       .build()
